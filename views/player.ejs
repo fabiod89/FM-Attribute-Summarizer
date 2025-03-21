@@ -1,0 +1,131 @@
+
+<main class="player-container">
+  <!-- Raw Data Toggle -->
+  <button onclick="toggleRawData()" class="btn toggle-btn">Show/Hide Raw Input Data</button>
+
+  <!-- Player Card -->
+  <div class="player-card">
+    <!-- Player Header -->
+    <div class="player-header">
+      <div class="player-portrait">
+        <div class="portrait-circle">
+          <% if (player.IMG) { %>
+            <img src="<%= player.IMG %>" alt="<%= player.Name %>">
+          <% } else { %>
+            <div class="placeholder">No Image</div>
+          <% } %>
+        </div>
+      </div>
+      <div class="player-info">
+        <h1><%= player.Name %></h1>
+        <div class="vital-stats">
+          <div class="stat-item">
+            <span class="stat-label">Age</span>
+            <span class="stat-value"><%= player.Age %></span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Position</span>
+            <span class="stat-value"><%= player.Position %></span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Nationality</span>
+            <span class="stat-value"><%= player.NoB %></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Player Details -->
+    <div class="player-details">
+      <!-- Media Description, Personality, Weight, and Height -->
+      <div class="detail-section">
+        <% if (player['Media Description']) { %>
+        <div class="detail-item">
+          <h3>Media Description</h3>
+          <p><%= player['Media Description'] %></p>
+        </div>
+        <% } %>
+        <% if (player.Personality) { %>
+        <div class="detail-item">
+          <h3>Personality</h3>
+          <p><%= player.Personality %></p>
+        </div>
+        <% } %>
+        <div class="detail-item">
+          <h3>Physical Details</h3>
+          <p>
+            <% if (player.Weight) { %>
+            <span class="physical-detail">Weight: <%= player.Weight %></span>
+            <% } %>
+            <% if (player.Height) { %>
+            <span class="physical-detail">Height: <%= player.Height %></span>
+            <% } %>
+          </p>
+        </div>
+      </div>
+
+      <!-- Footedness -->
+      <div class="footedness">
+        <h3>Preferred Foot</h3>
+        <div class="foot-container">
+          <div class="foot-item">
+            <span class="foot-label">Left Foot</span>
+            <span class="foot-value"><%= player['Left Foot'] %></span>
+          </div>
+          <div class="foot-item">
+            <span class="foot-label">Right Foot</span>
+            <span class="foot-value"><%= player['Right Foot'] %></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Analysis -->
+      <div class="analysis-section">
+        <h2>AI Attribute Analysis</h2>
+        <div class="analysis-content">
+          <pre><%= player.analysis %></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Raw Data Display -->
+  <div id="rawData" class="raw-data-container" style="display: none;">
+    <h3>Raw Input Data Sent to AI</h3>
+    <pre><%=
+      (function generateRawData(player) {
+        let rawData = '';
+        const categories = {
+          'Goalkeeping': ['Aer', 'Cmd', 'Com', 'Ecc', 'Han', 'Kic', '1v1', 'Pun', 'Ref', 'TRO', 'Thr'],
+          'Technical': ['Cor', 'Cro', 'Dri', 'Fin', 'Fir', 'Fre', 'Hea', 'Lon', 'L Th', 'Mar', 'Pas', 'Pen', 'Tck', 'Tec'],
+          'Mental': ['Agg', 'Ant', 'Bra', 'Cmp', 'Cnt', 'Dec', 'Det', 'Fla', 'Ldr', 'OtB', 'Pos', 'Tea', 'Vis', 'Wor'],
+          'Physical': ['Acc', 'Agi', 'Bal', 'Jum', 'Nat', 'Pac', 'Sta', 'Str']
+        };
+
+        for (const [categoryName, attributes] of Object.entries(categories)) {
+          rawData += `${categoryName} Attributes:\n`;
+          attributes.forEach(abbr => {
+            if (player[abbr]) {
+              const fullName = attributeMap[abbr];
+              rawData += `- ${fullName}: ${player[abbr]}\n`;
+            }
+          });
+          rawData += '\n';
+        }
+        rawData += 'Analyze this player and provide:\n1. Good Traits: [List 2-6 key strengths]\n2. Bad Traits: [List 2-6 key weaknesses]';
+        return rawData;
+      })(player)
+    %></pre>
+  </div>
+</main>
+
+<script>
+  function toggleRawData() {
+    const rawDataDiv = document.getElementById('rawData');
+    if (rawDataDiv.style.display === 'none') {
+      rawDataDiv.style.display = 'block';
+    } else {
+      rawDataDiv.style.display = 'none';
+    }
+  }
+</script>

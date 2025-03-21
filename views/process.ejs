@@ -1,0 +1,32 @@
+<% layout('layout') -%>
+
+<main>
+  <div class="loading-container">
+    <h1>Processing Players...</h1>
+    <div class="progress-bar">
+      <div class="progress" style="width: 0%"></div>
+    </div>
+    <p class="progress-text">0/<%= totalPlayers %> players processed</p>
+  </div>
+
+  <script>
+    const source = new EventSource('/progress');
+    const progressBar = document.querySelector('.progress');
+    const progressText = document.querySelector('.progress-text');
+    const totalPlayers = <%= totalPlayers %>;
+
+    source.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      const progress = Math.min(data.current, totalPlayers);
+      const percent = (progress / totalPlayers) * 100;
+      
+      progressBar.style.width = `${percent}%`;
+      progressText.textContent = `${progress}/${totalPlayers} players processed`;
+    };
+
+    source.onerror = (error) => {
+      console.error('EventSource error:', error);
+      source.close();
+    };
+  </script>
+</main>

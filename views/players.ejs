@@ -1,0 +1,12 @@
+<main>
+  <h1>Player List</h1>
+  <div class="player-grid">
+    <% players.forEach(player => { %>
+      <div class="player-card">
+        <h3><%= player.Name %></h3>
+        <p><%= player.Position %> | <%= player.Age %> years</p>
+        <a href="/player/<%= player.UID %>" class="btn">View Profile</a>
+      </div>
+    <% }) %>
+  </div>
+</main>
