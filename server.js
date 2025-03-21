@@ -163,7 +163,7 @@ app.post('/upload', upload.single('fmFile'), async (req, res) => {
         currentProgress++;
       }
   
-      fs.writeFileSync('public/data/players.json', JSON.stringify(players));
+      
       processing = false;
       res.redirect('/players');
     } catch (error) {
@@ -219,14 +219,14 @@ app.get('/', (req, res) => {
 });
 
 app.get('/players', (req, res) => {
-  try {
-    const players = JSON.parse(fs.readFileSync('public/data/players.json'));
-    res.render('players', { players });
-  } catch (error) {
-    console.error('Error loading players:', error);
-    res.status(500).send('Error loading players');
-  }
-});
+    // If players data is passed from the upload route, render it
+    if (req.query.players) {
+      const players = JSON.parse(req.query.players);
+      res.render('players', { players });
+    } else {
+      res.status(400).send('No players data found');
+    }
+  });
 
 app.get('/player/:uid', (req, res) => {
   try {
