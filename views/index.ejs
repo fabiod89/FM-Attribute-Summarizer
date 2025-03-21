@@ -82,26 +82,42 @@
 </main>
 
 <script>
-  document.querySelector('form').addEventListener('submit', () => {
-    const modal = document.getElementById('loadingModal');
-    modal.style.display = 'block';
-
-    const source = new EventSource('/progress');
-    const progressBar = document.querySelector('.progress');
-    const progressText = document.querySelector('.progress-text');
-
-    source.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      const progress = Math.min(data.current, data.total);
-      const percent = (progress / data.total) * 100;
-
-      progressBar.style.width = `${percent}%`;
-      progressText.textContent = `${progress}/${data.total} players processed`;
-    };
-
-    source.onerror = (error) => {
-      console.error('EventSource error:', error);
-      source.close();
-    };
-  });
-</script>
+    document.querySelector('form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const modal = document.getElementById('loadingModal');
+      const formData = new FormData(e.target);
+  
+      modal.style.display = 'block';
+  
+      // Listen for progress updates
+      const source = new EventSource('/progress');
+      const progressBar = document.querySelector('.progress');
+      const progressText = document.querySelector('.progress-text');
+  
+      source.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        const progress = Math.min(data.current, data.total);
+        const percent = (progress / data.total) * 100;
+  
+        progressBar.style.width = `${percent}%`;
+        progressText.textContent = `${progress}/${data.total} players processed`;
+      };
+  
+      source.onerror = (error) => {
+        console.error('EventSource error:', error);
+        source.close();
+      };
+  
+      // Submit the form
+      fetch('/upload', {
+        method: 'POST',
+        body: formData
+      }).then(response => {
+        if (response.redirected) window.location = response.url;
+        source.close();
+      }).catch(error => {
+        console.error('Upload failed:', error);
+        source.close();
+      });
+    });
+  </script>
