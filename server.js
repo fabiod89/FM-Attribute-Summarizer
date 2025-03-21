@@ -11,6 +11,8 @@ const app = express();
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const examples = require('./examples.json');
 
+app.use(express.static(path.join(__dirname, 'public')));
+
 // Configure model
 const model = genAI.getGenerativeModel({
   model: "gemini-2.0-flash",
@@ -30,13 +32,13 @@ let totalPlayers = 0;
 
 // Configure Multer
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
+destination: (req, file, cb) => {
     fs.mkdirSync('public/uploads/', { recursive: true });
     cb(null, 'public/uploads/');
-  },
-  filename: (req, file, cb) => {
+},
+filename: (req, file, cb) => {
     cb(null, Date.now() + '-' + file.originalname);
-  },
+},
 });
 const upload = multer({ storage });
 
@@ -128,47 +130,50 @@ app.get('/progress', (req, res) => {
 
 // Upload route
 app.post('/upload', upload.single('fmFile'), async (req, res) => {
-  if (!req.file) return res.status(400).send('No file uploaded');
-
-  try {
-    processing = true;
-    const html = fs.readFileSync(req.file.path, 'utf8');
-    const $ = cheerio.load(html);
-    
-    // Fixed table selection
-    const table = $('table').first();
-    const headers = table.find('th').map((i, th) => $(th).text().trim()).get();
-    const rows = table.find('tr').slice(1).toArray();
-
-    totalPlayers = rows.length;
-    currentProgress = 0;
-    const players = [];
-
-    for (const row of rows) {
-      const $row = $(row);
-      const player = {};
-
-      $row.find('td').each((index, td) => {
-        const header = headers[index];
-        if (header) player[header] = $(td).text().trim();
-      });
-
-      player.analysis = await analyzePlayer(player);
-      players.push(player);
-      currentProgress++;
+    console.log('Upload route hit'); // Debugging
+    if (!req.file) {
+      console.log('No file uploaded'); // Debugging
+      return res.status(400).send('No file uploaded');
     }
-
-    fs.writeFileSync('public/data/players.json', JSON.stringify(players));
-    processing = false;
-    res.redirect('/players');
-  } catch (error) {
-    processing = false;
-    console.error('Error processing file:', error);
-    res.status(500).send('Error processing file');
-  } finally {
-    if (req.file) fs.unlinkSync(req.file.path);
-  }
-});
+  
+    try {
+      console.log('Processing file:', req.file.path); // Debugging
+      const html = fs.readFileSync(req.file.path, 'utf8');
+      const $ = cheerio.load(html);
+      const players = [];
+  
+      const rows = $('tr').slice(1); // Skip header
+      totalPlayers = rows.length;
+      currentProgress = 0;
+  
+      const headers = $('th')
+        .map((i, th) => $(th).text().trim())
+        .get();
+  
+      for (const row of rows) {
+        const cols = $(row).find('td');
+        const player = {};
+  
+        headers.forEach((header, index) => {
+          player[header] = $(cols[index]).text().trim();
+        });
+  
+        player.analysis = await analyzePlayer(player);
+        players.push(player);
+        currentProgress++;
+      }
+  
+      fs.writeFileSync('public/data/players.json', JSON.stringify(players));
+      processing = false;
+      res.redirect('/players');
+    } catch (error) {
+      console.error('Error processing file:', error); // Debugging
+      processing = false;
+      res.status(500).send('Error processing file');
+    } finally {
+      if (req.file) fs.unlinkSync(req.file.path); // Clean up uploaded file
+    }
+  });
 
 // Analyze player function
 async function analyzePlayer(player) {

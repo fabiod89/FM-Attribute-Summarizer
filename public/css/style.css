@@ -479,3 +479,40 @@ body {
     font-family: 'JetBrains Mono', monospace;
     line-height: 1.6;
   }
+
+  /* Header Styles */
+.header {
+    background: #1e1e1e;
+    padding: 1rem 2rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  }
+  
+  .header-content {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .header-title {
+    font-size: 1.8rem;
+    color: #4fc3f7;
+    margin: 0;
+  }
+  
+  .header-nav {
+    display: flex;
+    gap: 1.5rem;
+  }
+  
+  .nav-link {
+    color: #b0b0b0;
+    text-decoration: none;
+    font-size: 1.1rem;
+    transition: color 0.3s ease;
+  }
+  
+  .nav-link:hover {
+    color: #4fc3f7;
+  }
