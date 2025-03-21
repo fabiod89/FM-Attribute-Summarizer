@@ -11,6 +11,8 @@ const app = express();
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const examples = require('./examples.json');
 
+app.use(express.static(path.join(__dirname, 'public')));
+
 // Configure model
 const model = genAI.getGenerativeModel({
   model: "gemini-2.0-flash",
