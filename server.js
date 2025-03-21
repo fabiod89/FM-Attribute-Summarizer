@@ -2,20 +2,13 @@ require('dotenv').config();
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
 const cheerio = require('cheerio');
 const expressLayouts = require('express-ejs-layouts');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-// Use memory storage instead of disk storage
-const storage = multer.memoryStorage(); // Store files in memory
-const upload = multer({ storage });
-
 const app = express();
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const examples = require('./examples.json');
-
-app.use(express.static(path.join(__dirname, 'public')));
 
 // Configure model
 const model = genAI.getGenerativeModel({
@@ -34,16 +27,8 @@ let processing = false;
 let currentProgress = 0;
 let totalPlayers = 0;
 
-// Configure Multer
-const storage = multer.diskStorage({
-destination: (req, file, cb) => {
-    // fs.mkdirSync('public/uploads/', { recursive: true });
-    cb(null, 'public/uploads/');
-},
-filename: (req, file, cb) => {
-    cb(null, Date.now() + '-' + file.originalname);
-},
-});
+// Configure Multer for memory storage
+const storage = multer.memoryStorage(); // Store files in memory
 const upload = multer({ storage });
 
 // EJS setup
@@ -114,67 +99,6 @@ const attributeMap = {
   Thr: 'Throwing',
 };
 
-// Progress endpoint
-app.get('/progress', (req, res) => {
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  
-  const sendProgress = () => {
-    res.write(`data: ${JSON.stringify({ 
-      current: currentProgress,
-      total: totalPlayers
-    })}\n\n`);
-  };
-
-  sendProgress();
-  const interval = setInterval(sendProgress, 1000);
-  req.on('close', () => clearInterval(interval));
-});
-
-// Upload route
-app.post('/upload', upload.single('fmFile'), async (req, res) => {
-    console.log('Upload route hit'); // Debugging
-    if (!req.file) {
-      console.log('No file uploaded'); // Debugging
-      return res.status(400).send('No file uploaded');
-    }
-  
-    try {
-      console.log('Processing file from memory'); // Debugging
-      const html = req.file.buffer.toString('utf8'); // Read file from memory
-      const $ = cheerio.load(html);
-      const players = [];
-  
-      const rows = $('tr').slice(1); // Skip header
-      console.log(`Found ${rows.length} players`); // Debugging
-  
-      const headers = $('th')
-        .map((i, th) => $(th).text().trim())
-        .get();
-      console.log('Headers:', headers); // Debugging
-  
-      for (const row of rows) {
-        const cols = $(row).find('td');
-        const player = {};
-  
-        headers.forEach((header, index) => {
-          player[header] = $(cols[index]).text().trim();
-        });
-  
-        console.log('Analyzing player:', player.Name); // Debugging
-        player.analysis = await analyzePlayer(player);
-        players.push(player);
-      }
-  
-      console.log('Players processed successfully'); // Debugging
-      res.render('players', { players });
-    } catch (error) {
-      console.error('Error processing file:', error); // Debugging
-      res.status(500).send('Error processing file');
-    }
-  });
-
 // Analyze player function
 async function analyzePlayer(player) {
   const attributeCategories = {
@@ -184,12 +108,14 @@ async function analyzePlayer(player) {
     physical: ['Acc','Agi','Bal','Jum','Nat','Pac','Sta','Str']
   };
 
+  // Build prompt with examples
   let prompt = '';
   examples.forEach(example => {
     prompt += `input: ${example.input}\n`;
     prompt += `output: ${example.output}\n\n`;
   });
 
+  // Add current player's data
   prompt += 'input: ';
   for (const [category, attributes] of Object.entries(attributeCategories)) {
     prompt += `${category.charAt(0).toUpperCase() + category.slice(1)} Attributes:\n`;
@@ -213,36 +139,71 @@ async function analyzePlayer(player) {
   }
 }
 
+let playersData = []; // Global variable to store players
+
+// Upload route with memory storage
+app.post('/upload', upload.single('fmFile'), async (req, res) => {
+    console.log('Upload route hit'); // Debugging
+    if (!req.file) {
+      console.log('No file uploaded'); // Debugging
+      return res.status(400).send('No file uploaded');
+    }
+  
+    try {
+      processing = true;
+      console.log('Processing file from memory'); // Debugging
+      const html = req.file.buffer.toString('utf8'); // Read file from memory
+      const $ = cheerio.load(html);
+      playersData = []; // Reset players data
+  
+      const rows = $('tr').slice(1); // Skip header
+      totalPlayers = rows.length;
+      currentProgress = 0;
+  
+      const headers = $('th')
+        .map((i, th) => $(th).text().trim())
+        .get();
+  
+      for (const row of rows) {
+        const cols = $(row).find('td');
+        const player = {};
+  
+        headers.forEach((header, index) => {
+          player[header] = $(cols[index]).text().trim();
+        });
+  
+        player.analysis = await analyzePlayer(player);
+        playersData.push(player);
+        currentProgress++;
+      }
+  
+      processing = false;
+      res.redirect('/players');
+    } catch (error) {
+      processing = false;
+      console.error('Error processing file:', error);
+      res.status(500).send('Error processing file');
+    }
+  });
+
 // Routes
 app.get('/', (req, res) => {
   res.render('index');
 });
 
 app.get('/players', (req, res) => {
-    // If players data is passed from the upload route, render it
-    if (req.query.players) {
-      const players = JSON.parse(req.query.players);
-      res.render('players', { players });
-    } else {
-      res.status(400).send('No players data found');
-    }
+    res.render('players', { players: playersData });
   });
 
-app.get('/player/:uid', (req, res) => {
-  try {
-    const players = JSON.parse(fs.readFileSync('public/data/players.json'));
-    const player = players.find((p) => p.UID === req.params.uid);
-
+  app.get('/player/:uid', (req, res) => {
+    const player = playersData.find((p) => p.UID === req.params.uid);
+  
     if (!player) {
       return res.status(404).send('Player not found');
     }
-
+  
     res.render('player', { player, attributeMap });
-  } catch (error) {
-    console.error('Error loading player:', error);
-    res.status(500).send('Error loading player');
-  }
-});
+  });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
