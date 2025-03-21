@@ -70,7 +70,8 @@
   </div>
 
   <!-- Loading Modal -->
-  <div id="loadingModal" class="modal">
+<!-- Loading Modal -->
+<div id="loadingModal" class="modal">
     <div class="modal-content">
       <h2>Processing Your File...</h2>
       <div class="progress-bar">
@@ -79,7 +80,6 @@
       <p class="progress-text">0/0 players processed</p>
     </div>
   </div>
-</main>
 
 <script>
     document.querySelector('form').addEventListener('submit', (e) => {
@@ -89,35 +89,41 @@
   
       modal.style.display = 'block';
   
-      // Listen for progress updates
-      const source = new EventSource('/progress');
-      const progressBar = document.querySelector('.progress');
-      const progressText = document.querySelector('.progress-text');
-  
-      source.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        const progress = Math.min(data.current, data.total);
-        const percent = (progress / data.total) * 100;
-  
-        progressBar.style.width = `${percent}%`;
-        progressText.textContent = `${progress}/${data.total} players processed`;
-      };
-  
-      source.onerror = (error) => {
-        console.error('EventSource error:', error);
-        source.close();
-      };
-  
       // Submit the form
       fetch('/upload', {
         method: 'POST',
         body: formData
       }).then(response => {
         if (response.redirected) window.location = response.url;
-        source.close();
       }).catch(error => {
         console.error('Upload failed:', error);
-        source.close();
       });
+  
+      // Poll for progress updates
+      const progressBar = document.querySelector('.progress');
+      const progressText = document.querySelector('.progress-text');
+  
+      const pollProgress = () => {
+        fetch('/progress')
+          .then(response => response.json())
+          .then(data => {
+            const progress = Math.min(data.current, data.total);
+            const percent = (progress / data.total) * 100;
+  
+            progressBar.style.width = `${percent}%`;
+            progressText.textContent = `${progress}/${data.total} players processed`;
+  
+            // Continue polling until processing is complete
+            if (progress < data.total) {
+              setTimeout(pollProgress, 1000); // Poll every second
+            }
+          })
+          .catch(error => {
+            console.error('Error fetching progress:', error);
+          });
+      };
+  
+      // Start polling
+      pollProgress();
     });
   </script>

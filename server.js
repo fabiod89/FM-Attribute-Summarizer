@@ -200,27 +200,13 @@ app.post('/upload', upload.single('fmFile'), async (req, res) => {
 });
 
 app.get('/progress', (req, res) => {
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-  
-    const sendProgress = () => {
-      res.write(`data: ${JSON.stringify({ 
-        current: currentProgress,
-        total: totalPlayers
-      })}\n\n`);
-    };
-  
-    // Send progress immediately and every second
-    sendProgress();
-    const interval = setInterval(sendProgress, 1000);
-  
-    // Cleanup on client disconnect
-    req.on('close', () => {
-      clearInterval(interval);
+    res.json({
+      current: currentProgress,
+      total: totalPlayers
     });
   });
 
+  
 // Routes
 app.get('/', (req, res) => {
   res.render('index');
