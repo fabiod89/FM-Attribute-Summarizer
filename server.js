@@ -4,13 +4,12 @@ const multer = require('multer');
 const path = require('path');
 const cheerio = require('cheerio');
 const expressLayouts = require('express-ejs-layouts');
+const session = require('express-session');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const app = express();
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const examples = require('./examples.json');
-
-app.use(express.static(path.join(__dirname, 'public')));
 
 // Configure model
 const model = genAI.getGenerativeModel({
@@ -32,6 +31,16 @@ let totalPlayers = 0;
 // Configure Multer for memory storage
 const storage = multer.memoryStorage(); // Store files in memory
 const upload = multer({ storage });
+
+// Configure session middleware
+app.use(
+  session({
+    secret: 'your-secret-key', // Change this to a secure, random string
+    resave: false,
+    saveUninitialized: true,
+    cookie: { secure: false } // Set to true if using HTTPS
+  })
+);
 
 // EJS setup
 app.use(expressLayouts);
@@ -141,52 +150,52 @@ async function analyzePlayer(player) {
   }
 }
 
-let playersData = []; // Global variable to store players
-
 // Upload route with memory storage
 app.post('/upload', upload.single('fmFile'), async (req, res) => {
-    console.log('Upload route hit'); // Debugging
-    if (!req.file) {
-      console.log('No file uploaded'); // Debugging
-      return res.status(400).send('No file uploaded');
+  console.log('Upload route hit'); // Debugging
+  if (!req.file) {
+    console.log('No file uploaded'); // Debugging
+    return res.status(400).send('No file uploaded');
+  }
+
+  try {
+    processing = true;
+    console.log('Processing file from memory'); // Debugging
+    const html = req.file.buffer.toString('utf8'); // Read file from memory
+    const $ = cheerio.load(html);
+    const players = [];
+
+    const rows = $('tr').slice(1); // Skip header
+    totalPlayers = rows.length;
+    currentProgress = 0;
+
+    const headers = $('th')
+      .map((i, th) => $(th).text().trim())
+      .get();
+
+    for (const row of rows) {
+      const cols = $(row).find('td');
+      const player = {};
+
+      headers.forEach((header, index) => {
+        player[header] = $(cols[index]).text().trim();
+      });
+
+      player.analysis = await analyzePlayer(player);
+      players.push(player);
+      currentProgress++;
     }
-  
-    try {
-      processing = true;
-      console.log('Processing file from memory'); // Debugging
-      const html = req.file.buffer.toString('utf8'); // Read file from memory
-      const $ = cheerio.load(html);
-      playersData = []; // Reset players data
-  
-      const rows = $('tr').slice(1); // Skip header
-      totalPlayers = rows.length;
-      currentProgress = 0;
-  
-      const headers = $('th')
-        .map((i, th) => $(th).text().trim())
-        .get();
-  
-      for (const row of rows) {
-        const cols = $(row).find('td');
-        const player = {};
-  
-        headers.forEach((header, index) => {
-          player[header] = $(cols[index]).text().trim();
-        });
-  
-        player.analysis = await analyzePlayer(player);
-        playersData.push(player);
-        currentProgress++;
-      }
-  
-      processing = false;
-      res.redirect('/players');
-    } catch (error) {
-      processing = false;
-      console.error('Error processing file:', error);
-      res.status(500).send('Error processing file');
-    }
-  });
+
+    // Store players data in the session
+    req.session.players = players;
+    processing = false;
+    res.redirect('/players');
+  } catch (error) {
+    processing = false;
+    console.error('Error processing file:', error);
+    res.status(500).send('Error processing file');
+  }
+});
 
 // Routes
 app.get('/', (req, res) => {
@@ -194,18 +203,22 @@ app.get('/', (req, res) => {
 });
 
 app.get('/players', (req, res) => {
-    res.render('players', { players: playersData });
-  });
+  // Get players data from the session
+  const players = req.session.players || [];
+  res.render('players', { players });
+});
 
-  app.get('/player/:uid', (req, res) => {
-    const player = playersData.find((p) => p.UID === req.params.uid);
-  
-    if (!player) {
-      return res.status(404).send('Player not found');
-    }
-  
-    res.render('player', { player, attributeMap });
-  });
+app.get('/player/:uid', (req, res) => {
+  // Get players data from the session
+  const players = req.session.players || [];
+  const player = players.find((p) => p.UID === req.params.uid);
+
+  if (!player) {
+    return res.status(404).send('Player not found');
+  }
+
+  res.render('player', { player, attributeMap });
+});
 
 // Error handling middleware
 app.use((err, req, res, next) => {
