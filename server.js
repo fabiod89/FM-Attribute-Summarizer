@@ -154,81 +154,82 @@ async function analyzePlayer(player) {
 
 // Upload route with memory storage
 app.post('/upload', upload.single('fmFile'), async (req, res) => {
-  console.log('Upload route hit'); // Debugging
-  if (!req.file) {
-    console.log('No file uploaded'); // Debugging
-    return res.status(400).send('No file uploaded');
-  }
-
-  try {
-    processing = true;
-    console.log('Processing file from memory'); // Debugging
-    const html = req.file.buffer.toString('utf8'); // Read file from memory
-    const $ = cheerio.load(html);
-    const players = [];
-
-    const rows = $('tr').slice(1); // Skip header
-    totalPlayers = rows.length;
-    currentProgress = 0;
-
-    const headers = $('th')
-      .map((i, th) => $(th).text().trim())
-      .get();
-
-    for (const row of rows) {
-      const cols = $(row).find('td');
-      const player = {};
-
-      headers.forEach((header, index) => {
-        player[header] = $(cols[index]).text().trim();
-      });
-
-      player.analysis = await analyzePlayer(player);
-      players.push(player);
-      currentProgress++;
+    console.log('Upload route hit'); // Debugging
+    if (!req.file) {
+      console.log('No file uploaded'); // Debugging
+      return res.status(400).send('No file uploaded');
     }
+  
+    try {
+      processing = true;
+      console.log('Processing file from memory'); // Debugging
+      const html = req.file.buffer.toString('utf8'); // Read file from memory
+      const $ = cheerio.load(html);
+      const players = [];
+  
+      const rows = $('tr').slice(1); // Skip header
+      totalPlayers = rows.length;
+      currentProgress = 0;
+  
+      const headers = $('th')
+        .map((i, th) => $(th).text().trim())
+        .get();
+  
+      for (const row of rows) {
+        const cols = $(row).find('td');
+        const player = {};
+  
+        headers.forEach((header, index) => {
+          player[header] = $(cols[index]).text().trim();
+        });
+  
+        player.analysis = await analyzePlayer(player);
+        players.push(player);
+        currentProgress++;
+      }
+  
+      // Store players data in the session
+      req.session.players = players;
+      processing = false;
+      res.redirect('/players');
+    } catch (error) {
+      processing = false;
+      console.error('Error processing file:', error);
+      res.status(500).send('Error processing file');
+    }
+  });
 
-    // Store players data in the session
-    req.session.players = players;
-    processing = false;
-    res.redirect('/players');
-  } catch (error) {
-    processing = false;
-    console.error('Error processing file:', error);
-    res.status(500).send('Error processing file');
-  }
-});
-
-app.get('/progress', (req, res) => {
+  app.get('/progress', (req, res) => {
+    const players = req.session.players || [];
     res.json({
-      current: currentProgress,
+      current: players.length,
       total: totalPlayers
     });
   });
 
-  
+
 // Routes
 app.get('/', (req, res) => {
   res.render('index');
 });
 
 app.get('/players', (req, res) => {
-  // Get players data from the session
-  const players = req.session.players || [];
-  res.render('players', { players });
-});
+    // Get players data from the session
+    const players = req.session.players || [];
+    res.render('players', { players });
+  });
 
-app.get('/player/:uid', (req, res) => {
-  // Get players data from the session
-  const players = req.session.players || [];
-  const player = players.find((p) => p.UID === req.params.uid);
-
-  if (!player) {
-    return res.status(404).send('Player not found');
-  }
-
-  res.render('player', { player, attributeMap });
-});
+  app.get('/player/:uid', (req, res) => {
+    // Get players data from the session
+    const players = req.session.players || [];
+    const player = players.find((p) => p.UID === req.params.uid);
+  
+    if (!player) {
+      return res.status(404).send('Player not found');
+    }
+  
+    res.render('player', { player, attributeMap });
+  });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
