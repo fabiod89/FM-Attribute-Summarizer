@@ -7,6 +7,10 @@ const cheerio = require('cheerio');
 const expressLayouts = require('express-ejs-layouts');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
+// Use memory storage instead of disk storage
+const storage = multer.memoryStorage(); // Store files in memory
+const upload = multer({ storage });
+
 const app = express();
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const examples = require('./examples.json');
@@ -33,7 +37,7 @@ let totalPlayers = 0;
 // Configure Multer
 const storage = multer.diskStorage({
 destination: (req, file, cb) => {
-    fs.mkdirSync('public/uploads/', { recursive: true });
+    // fs.mkdirSync('public/uploads/', { recursive: true });
     cb(null, 'public/uploads/');
 },
 filename: (req, file, cb) => {
@@ -137,18 +141,18 @@ app.post('/upload', upload.single('fmFile'), async (req, res) => {
     }
   
     try {
-      console.log('Processing file:', req.file.path); // Debugging
-      const html = fs.readFileSync(req.file.path, 'utf8');
+      console.log('Processing file from memory'); // Debugging
+      const html = req.file.buffer.toString('utf8'); // Read file from memory
       const $ = cheerio.load(html);
       const players = [];
   
       const rows = $('tr').slice(1); // Skip header
-      totalPlayers = rows.length;
-      currentProgress = 0;
+      console.log(`Found ${rows.length} players`); // Debugging
   
       const headers = $('th')
         .map((i, th) => $(th).text().trim())
         .get();
+      console.log('Headers:', headers); // Debugging
   
       for (const row of rows) {
         const cols = $(row).find('td');
@@ -158,20 +162,16 @@ app.post('/upload', upload.single('fmFile'), async (req, res) => {
           player[header] = $(cols[index]).text().trim();
         });
   
+        console.log('Analyzing player:', player.Name); // Debugging
         player.analysis = await analyzePlayer(player);
         players.push(player);
-        currentProgress++;
       }
   
-      
-      processing = false;
-      res.redirect('/players');
+      console.log('Players processed successfully'); // Debugging
+      res.render('players', { players });
     } catch (error) {
       console.error('Error processing file:', error); // Debugging
-      processing = false;
       res.status(500).send('Error processing file');
-    } finally {
-      if (req.file) fs.unlinkSync(req.file.path); // Clean up uploaded file
     }
   });
 
